@@ -1,12 +1,40 @@
+const crypto = require(`crypto`);
+const { ENDPOINT_AUTH, ENDPOINT_USERS, AUTH_TOKEN_HEADER, CHECKSUM_HEADER } = require(`./constants`);
 const request = require(`./request`);
 
-const DOMAIN = `http://0.0.0.0:8888`;
-const ENDPOINT_AUTH = `auth`;
-const ENDPOINT_USERS = `users`;
+let consecutiveFailures = 0;
 
-const retrieveNOC = async function() {
-  const req = await request(`${DOMAIN}/${ENDPOINT_AUTH}`);
-  console.log(req);
+const buildSHA256Checksum = authData => crypto.createHash(`sha256`).update(`${authData.headers[AUTH_TOKEN_HEADER]}${ENDPOINT_USERS}`).digest(`hex`);
+
+const reqWithRetry = async function(customOptions) {
+  
+  let res = await request(customOptions);
+
+  if (res.statusCode === 200) {
+    consecutiveFailures = 0;
+    return res;
+  } else {
+    consecutiveFailures++;
+    if (consecutiveFailures < 3) {
+      let res = reqWithRetry(customOptions);
+    } else {
+      process.exit(1);
+    }
+  }
+
 }
 
-retrieveNOC();
+const retrieveNOCList = async function() {
+  const authData = await reqWithRetry({ path: ENDPOINT_AUTH, });
+  const checksum = buildSHA256Checksum(authData)
+  const usersOptions = { 
+    path: ENDPOINT_USERS,
+    headers: {
+      [CHECKSUM_HEADER]: checksum,
+    },
+  };
+  const usersData = await reqWithRetry(usersOptions);
+  console.log(usersData.body)
+}
+
+retrieveNOCList();
