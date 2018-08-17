@@ -1,9 +1,13 @@
 const http = require(`http`);
 const { HOST, PORT } = require(`./constants`);
 
+//keep-alive agent
+const agent = new http.Agent({ keepAlive: true });
+
 const buildReqOptions = (customOptions) => ({
   host: HOST,
   port: PORT,
+  agent,
   ...customOptions,
 });
 
@@ -14,25 +18,28 @@ const request = async function(customOptions) {
     const options = buildReqOptions(customOptions);
 
     http.get(options, (res) => {
-      
+
       const resBody = [];
 
       res.on(`data`, (chunk) => resBody.push(chunk));
 
       res.on(`end`, () => {
         
+        const statusCode = parseInt(res.statusCode);
+
         const payload = {
           body: resBody.join(``),
-          statusCode: parseInt(res.statusCode),
           headers: res.headers,
         };
 
-        resolve(payload);
+        statusCode === 200 ? resolve(payload) : reject({statusCode});
 
       });
 
     }).on(`error`, (err) => {
-      //handle errors
+      
+      reject({statusCode: 500});
+
     });
         
   });

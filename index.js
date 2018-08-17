@@ -2,39 +2,52 @@ const crypto = require(`crypto`);
 const { ENDPOINT_AUTH, ENDPOINT_USERS, AUTH_TOKEN_HEADER, CHECKSUM_HEADER } = require(`./constants`);
 const request = require(`./request`);
 
-let consecutiveFailures = 0;
+let consecutiveFailCount = 0;
+let authToken;
 
-const buildSHA256Checksum = authData => crypto.createHash(`sha256`).update(`${authData.headers[AUTH_TOKEN_HEADER]}${ENDPOINT_USERS}`).digest(`hex`);
+const buildErrMsg = ({reqType, err}) => `>>>> Req Fail (${reqType}) ${consecutiveFailCount} - status code: ${err.statusCode}\n`
 
-const reqWithRetry = async function(customOptions) {
-  
-  let res = await request(customOptions);
+const buildSHA256Checksum = () => crypto.createHash(`sha256`).update(`${authToken}${ENDPOINT_USERS}`).digest(`hex`);
 
-  if (res.statusCode === 200) {
-    consecutiveFailures = 0;
-    return res;
-  } else {
-    consecutiveFailures++;
-    if (consecutiveFailures < 3) {
-      let res = reqWithRetry(customOptions);
-    } else {
-      process.exit(1);
-    }
+const formatUsersList = (usersListStr) => JSON.stringify(usersListStr.split(`\n`))
+
+const reqAuthToken = async function() {
+  try {
+    const authData = await request({ path: ENDPOINT_AUTH, });
+    authToken = authData.headers[AUTH_TOKEN_HEADER];
+    consecutiveFailCount = 0;
+  } catch (err) {
+    consecutiveFailCount++;
+    process.stderr.write(buildErrMsg({reqType: `AuthTok` ,err}));
   }
-
+  transactionControl();
 }
 
-const retrieveNOCList = async function() {
-  const authData = await reqWithRetry({ path: ENDPOINT_AUTH, });
-  const checksum = buildSHA256Checksum(authData)
+const reqUsersList = async function() {
   const usersOptions = { 
     path: ENDPOINT_USERS,
     headers: {
-      [CHECKSUM_HEADER]: checksum,
+      [CHECKSUM_HEADER]: buildSHA256Checksum(),
     },
   };
-  const usersData = await reqWithRetry(usersOptions);
-  console.log(usersData.body)
+  try {
+    const usersData = await request(usersOptions);
+    process.stdout.write(formatUsersList(usersData.body));
+    process.exit(0);
+  } catch (err) {
+    consecutiveFailCount++;
+    process.stderr.write(buildErrMsg({reqType: `UsrsList` ,err}))
+    transactionControl();
+  }
 }
 
-retrieveNOCList();
+const transactionControl = () => {
+  if (consecutiveFailCount < 3) {
+    authToken ? reqUsersList() : reqAuthToken();
+  } else {
+    process.stderr.write(`>><< Process Terminating: max server fail\n`)
+    process.exit(1);
+  }
+}
+
+transactionControl();
