@@ -18,7 +18,7 @@ const reqAuthToken = async function() {
     consecutiveFailCount = 0;
   } catch (err) {
     consecutiveFailCount++;
-    process.stderr.write(buildErrMsg({reqType: `AuthTok` ,err}));
+    process.stderr.write(buildErrMsg({reqType: `AuthTok`, err}));
   }
   transactionControl();
 }
@@ -45,7 +45,7 @@ const transactionControl = () => {
   if (consecutiveFailCount < 3) {
     authToken ? reqUsersList() : reqAuthToken();
   } else {
-    process.stderr.write(`>><< Process Terminating: max server fail\n`)
+    process.stderr.write(`>><< Process Terminating: max-server-fail\n`)
     process.exit(1);
   }
 }

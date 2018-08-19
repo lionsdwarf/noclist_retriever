@@ -24,22 +24,16 @@ const request = async function(customOptions) {
       res.on(`data`, (chunk) => resBody.push(chunk));
 
       res.on(`end`, () => {
-        
         const statusCode = parseInt(res.statusCode);
-
         const payload = {
           body: resBody.join(``),
           headers: res.headers,
         };
-
         statusCode === 200 ? resolve(payload) : reject({statusCode});
-
       });
-
-    }).on(`error`, (err) => {
       
+    }).on(`error`, (err) => {
       reject({statusCode: 500});
-
     });
         
   });
